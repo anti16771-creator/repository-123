@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PredictX — 반도체 장비 예지보전</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@300;400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{--bg:#0d0f12;--bg2:#13161b;--bg3:#1a1e25;--bg4:#21262f;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#e8eaed;--text2:#8b9099;--text3:#555b65;--accent:#00d4ff;--green:#00e896;--amber:#ffb830;--red:#ff4757;--purple:#a78bfa;--font-body:'IBM Plex Sans KR',sans-serif;--font-mono:'IBM Plex Mono',monospace;--font-disp:'Bebas Neue',sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+.shell{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:210px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.logo{padding:18px 16px 14px;border-bottom:1px solid var(--border)}
+.logo-name{font-family:var(--font-disp);font-size:24px;letter-spacing:2px;color:var(--accent);line-height:1}
+.logo-sub{font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px}
+.nav{padding:10px 0;flex:1}
+.nav-sec{padding:6px 16px 2px;font-family:var(--font-mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--text2);font-size:13px;border-left:2px solid transparent;transition:all .15s}
+.nav-item:hover{color:var(--text);background:var(--bg3)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(0,212,255,0.05)}
+.nav-item svg{width:15px;height:15px;flex-shrink:0}
+.nav-badge{margin-left:auto;font-family:var(--font-mono);font-size:10px;padding:1px 5px;border-radius:99px}
+.nb-red{background:var(--red);color:#fff}
+.nb-green{background:var(--green);color:#000}
+.nb-amber{background:var(--amber);color:#000}
+.sidebar-bottom{padding:12px 16px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:10px;color:var(--text3)}
+.ws-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.ws-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background .3s}
+.ws-dot.connected{background:var(--green);animation:blink 1.4s infinite}
+.ws-dot.disconnected{background:var(--red)}
+.ws-dot.connecting{background:var(--amber);animation:blink .7s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 22px;height:46px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:10}
+.topbar-title{font-family:var(--font-mono);font-size:11px;color:var(--text2)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.clock{font-family:var(--font-mono);font-size:11px;color:var(--accent)}
+.status-pill{font-family:var(--font-mono);font-size:10px;padding:2px 9px;border-radius:2px;background:rgba(0,232,150,.1);color:var(--green);border:1px solid rgba(0,232,150,.2)}
+.page{display:none;padding:20px}
+.page.active{display:block}
+.page-title{font-family:var(--font-disp);font-size:26px;letter-spacing:1.5px;line-height:1;margin-bottom:4px}
+.page-desc{font-family:var(--font-mono);font-size:11px;color:var(--text2);margin-bottom:18px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:14px;margin-bottom:12px}
+.card-title{font-family:var(--font-mono);font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.card-title svg{width:12px;height:12px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.metric{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:12px 14px;position:relative;overflow:hidden}
+.metric::before{content:'';position:absolute;top:0;left:0;width:2px;height:100%}
+.m-accent::before{background:var(--accent)}.m-green::before{background:var(--green)}.m-amber::before{background:var(--amber)}.m-red::before{background:var(--red)}
+.metric-label{font-family:var(--font-mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px}
+.metric-value{font-size:24px;font-weight:500;margin:2px 0;line-height:1}
+.mv-accent{color:var(--accent)}.mv-green{color:var(--green)}.mv-amber{color:var(--amber)}.mv-red{color:var(--red)}
+.metric-sub{font-family:var(--font-mono);font-size:10px;color:var(--text3)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.g13{display:grid;grid-template-columns:1fr 3fr;gap:12px;margin-bottom:12px}
+.chart-wrap{position:relative;width:100%}
+.equip-row{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:3px;border:1px solid var(--border);margin-bottom:5px;cursor:pointer;transition:all .15s;font-size:12px}
+.equip-row:hover{border-color:var(--border2);background:var(--bg3)}
+.equip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.equip-name{flex:1;font-weight:500}
+.equip-id{font-family:var(--font-mono);font-size:10px;color:var(--text3)}
+.hbar{width:60px;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.hfill{height:100%;border-radius:2px;transition:width .6s}
+.hpct{font-family:var(--font-mono);font-size:10px;color:var(--text2);width:28px;text-align:right}
+.tag{font-family:var(--font-mono);font-size:10px;padding:2px 6px;border-radius:2px}
+.tg{background:rgba(0,232,150,.12);color:var(--green)}.ta{background:rgba(255,184,48,.12);color:var(--amber)}.tr{background:rgba(255,71,87,.12);color:var(--red)}.tgr{background:var(--bg4);color:var(--text3)}.tb{background:rgba(0,212,255,.12);color:var(--accent)}
+.alert-item{display:flex;gap:9px;padding:8px 10px;border-radius:3px;border-left:2px solid;margin-bottom:5px;font-size:12px}
+.ai-h{background:rgba(255,71,87,.07);border-color:var(--red)}.ai-m{background:rgba(255,184,48,.07);border-color:var(--amber)}.ai-l{background:rgba(0,212,255,.07);border-color:var(--accent)}
+.alert-msg{color:var(--text);font-weight:500}
+.alert-meta{font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-top:1px}
+.sensor-row{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+.sensor-name{font-family:var(--font-mono);font-size:11px;color:var(--text2);width:100px;flex-shrink:0}
+.sensor-bg{flex:1;height:5px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.sensor-fill{height:100%;border-radius:2px;transition:width .8s}
+.sensor-val{font-family:var(--font-mono);font-size:11px;color:var(--text);width:65px;text-align:right;flex-shrink:0}
+.ai-score-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ai-label{font-family:var(--font-mono);font-size:11px;color:var(--text2);width:90px;flex-shrink:0}
+.ai-bg{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}
+.ai-fill{height:100%;border-radius:4px;transition:width .6s,background .4s}
+.ai-val{font-family:var(--font-mono);font-size:11px;width:44px;text-align:right;flex-shrink:0}
+.model-status{display:flex;flex-direction:column;gap:6px}
+.ms-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:3px;font-size:12px}
+.ms-name{flex:1;font-weight:500}
+.ms-badge{font-family:var(--font-mono);font-size:10px;padding:2px 7px;border-radius:2px}
+.ms-ready{background:rgba(0,232,150,.15);color:var(--green)}.ms-training{background:rgba(255,184,48,.15);color:var(--amber)}.ms-pending{background:var(--bg4);color:var(--text3)}
+.log-box{background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:10px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text3);line-height:1.8;max-height:130px;overflow-y:auto}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px}
+.tab-btn{padding:7px 13px;font-family:var(--font-mono);font-size:11px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2);transition:all .15s}
+.tab-btn:hover{color:var(--text)}.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-pane{display:none}.tab-pane.active{display:block}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-name">PredictX</div>
+    <div class="logo-sub">Predictive Maintenance OS</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-sec">모니터링</div>
+    <div class="nav-item active" onclick="navTo('overview',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      개요 대시보드
+      <span class="nav-badge nb-red" id="nb-alerts">0</span>
+    </div>
+    <div class="nav-item" onclick="navTo('sensors',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      실시간 센서
+    </div>
+    <div class="nav-item" onclick="navTo('ai',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      AI 이상 탐지
+      <span class="nav-badge nb-amber" id="nb-model">학습중</span>
+    </div>
+    <div class="nav-item" onclick="navTo('alerts',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      알림 이력
+    </div>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="ws-row">
+      <span class="ws-dot connecting" id="ws-dot"></span>
+      <span id="ws-label">서버 연결 중...</span>
+    </div>
+    <div id="ws-clock" style="margin-top:4px">--:--:--</div>
+    <div id="ws-msg-count" style="margin-top:2px">수신 0건</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="topbar-title">// OVERVIEW DASHBOARD</span>
+    <div class="topbar-right">
+      <span class="clock" id="main-clock">--:--:--</span>
+      <span class="status-pill" id="conn-pill">● CONNECTING</span>
+    </div>
+  </div>
+
+  <!-- ── PAGE: OVERVIEW ── -->
+  <div class="page active" id="page-overview">
+    <div class="page-title">개요 대시보드</div>
+    <div class="page-desc">// 실시간 장비 상태 — WebSocket 스트림 연결</div>
+    <div class="metrics">
+      <div class="metric m-accent"><div class="metric-label">가동 장비</div><div class="metric-value mv-accent" id="ov-running">—</div><div class="metric-sub" id="ov-running-sub">연결 중</div></div>
+      <div class="metric m-red"><div class="metric-label">AI 탐지 알림</div><div class="metric-value mv-red" id="ov-alarms">0</div><div class="metric-sub">누적 이상 감지</div></div>
+      <div class="metric m-green"><div class="metric-label">모델 상태</div><div class="metric-value mv-green" style="font-size:16px" id="ov-model">학습 대기</div><div class="metric-sub" id="ov-model-sub">데이터 수집 중</div></div>
+      <div class="metric m-amber"><div class="metric-label">최고 위험 장비</div><div class="metric-value mv-amber" style="font-size:18px" id="ov-top-risk">—</div><div class="metric-sub" id="ov-top-risk-sub">—</div></div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>장비 현황</div>
+        <div id="equip-list">연결 중...</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>CVD-01 실시간 온도</div>
+        <div class="chart-wrap" style="height:150px"><canvas id="ov-temp-c" role="img" aria-label="CVD-01 실시간 온도 추이"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>최근 AI 이상 알림</div>
+      <div id="ov-alerts-list">탐지된 알림 없음</div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: SENSORS ── -->
+  <div class="page" id="page-sensors">
+    <div class="page-title">실시간 센서 스트림</div>
+    <div class="page-desc">// WebSocket 1초 간격 실시간 데이터</div>
+    <div class="tab-bar">
+      <div class="tab-btn active" onclick="switchEquipTab('CVD-01',this)">CVD-01</div>
+      <div class="tab-btn" onclick="switchEquipTab('CVD-02',this)">CVD-02</div>
+      <div class="tab-btn" onclick="switchEquipTab('CMP-01',this)">CMP-01</div>
+      <div class="tab-btn" onclick="switchEquipTab('ETH-01',this)">ETH-01</div>
+      <div class="tab-btn" onclick="switchEquipTab('IMP-01',this)">IMP-01</div>
+      <div class="tab-btn" onclick="switchEquipTab('LIT-01',this)">LIT-01</div>
+    </div>
+    <div class="g2">
+      <div class="card"><div class="card-title">온도 (°C)</div><div class="chart-wrap" style="height:130px"><canvas id="s-temp-c" role="img" aria-label="선택 장비 온도"></canvas></div></div>
+      <div class="card"><div class="card-title">진동 (mm/s)</div><div class="chart-wrap" style="height:130px"><canvas id="s-vib-c" role="img" aria-label="선택 장비 진동"></canvas></div></div>
+      <div class="card"><div class="card-title">압력 (mTorr)</div><div class="chart-wrap" style="height:130px"><canvas id="s-pres-c" role="img" aria-label="선택 장비 압력"></canvas></div></div>
+      <div class="card"><div class="card-title">전류 (A)</div><div class="chart-wrap" style="height:130px"><canvas id="s-curr-c" role="img" aria-label="선택 장비 전류"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">전체 장비 최신 센서값</div>
+      <div id="s-all-sensors"></div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: AI ── -->
+  <div class="page" id="page-ai">
+    <div class="page-title">AI 이상 탐지</div>
+    <div class="page-desc">// Isolation Forest + LSTM Autoencoder 앙상블</div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">모델 학습 현황</div>
+        <div class="model-status" id="model-status-list">로딩 중...</div>
+      </div>
+      <div class="card">
+        <div class="card-title">장비별 이상 스코어 (실시간)</div>
+        <div id="ai-scores"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">이상 탐지 추이 — 앙상블 스코어</div>
+      <div class="chart-wrap" style="height:180px"><canvas id="ai-trend-c" role="img" aria-label="AI 이상 탐지 앙상블 스코어 추이"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">탐지 로그</div>
+      <div class="log-box" id="ai-log">AI 모델 학습 중 — 약 100개 샘플 수집 후 Isolation Forest 가동, 130개 후 LSTM 학습 시작...</div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: ALERTS ── -->
+  <div class="page" id="page-alerts">
+    <div class="page-title">알림 이력</div>
+    <div class="page-desc">// AI가 탐지한 이상 이벤트 전체 이력</div>
+    <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric m-red"><div class="metric-label">총 알림</div><div class="metric-value mv-red" id="al-total">0</div></div>
+      <div class="metric m-amber"><div class="metric-label">IF 탐지</div><div class="metric-value mv-amber" id="al-if">0</div></div>
+      <div class="metric m-accent"><div class="metric-label">LSTM 탐지</div><div class="metric-value mv-accent" id="al-lstm">0</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">알림 스코어 분포</div>
+      <div class="chart-wrap" style="height:150px"><canvas id="al-hist-c" role="img" aria-label="알림 스코어 분포 히스토그램"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">최근 알림 목록</div>
+      <div id="al-list">아직 탐지된 알림이 없습니다. AI 모델이 학습 중입니다.</div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+/* ─── STATE ─── */
+// ── 백엔드 주소 설정 ──────────────────────────────────────────
+// Vercel 배포 시: 아래 BACKEND_URL을 Render 서버 주소로 변경하세요
+// 예) const BACKEND_URL = 'https://predictx-backend.onrender.com'
+// 로컬 실행 시: '' (빈 문자열 = 같은 서버)
+const BACKEND_URL = window.__BACKEND_URL__ || '';
+
+const API_BASE = BACKEND_URL || window.location.origin;
+const WS_URL   = BACKEND_URL
+  ? (BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws/stream')
+  : ((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/ws/stream');
+const EQUIP_IDS = ['CVD-01','CVD-02','CMP-01','ETH-01','IMP-01','LIT-01'];
+const MAX_PTS = 60;
+
+let ws = null, wsReconnectTimer = null;
+let msgCount = 0;
+let totalAlerts = 0, ifAlerts = 0, lstmAlerts = 0;
+let selectedEquip = 'CVD-01';
+
+// 장비별 센서 링버퍼
+const sensorBuf = {};
+EQUIP_IDS.forEach(id => {
+  sensorBuf[id] = { temperature:[], vibration:[], pressure:[], current:[], humidity:[], ts:[] };
+});
+
+// 이상 스코어 버퍼
+const scoreBuf = {};
+EQUIP_IDS.forEach(id => { scoreBuf[id] = []; });
+
+// 최신 센서값
+const latestSensor = {};
+const latestAnomalyScore = {};
+const alertLog = [];
+
+/* ─── NAVIGATION ─── */
+const pageTitles = {
+  overview: '// OVERVIEW DASHBOARD',
+  sensors:  '// REAL-TIME SENSOR STREAM',
+  ai:       '// AI ANOMALY DETECTION ENGINE',
+  alerts:   '// ALERT HISTORY',
+};
+function navTo(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbar-title').textContent = pageTitles[id] || '';
+}
+
+/* ─── CLOCK ─── */
+setInterval(() => {
+  const t = new Date().toLocaleTimeString('ko-KR');
+  document.getElementById('main-clock').textContent = t;
+  document.getElementById('ws-clock').textContent   = t;
+}, 1000);
+
+/* ─── CHARTS ─── */
+function mkLineChart(id, color, label) {
+  return new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label, data: [], borderColor: color, backgroundColor: color+'18', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 200 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color:'#555b65', font:{size:9}, maxTicksLimit:6 }, grid: { color:'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color:'#555b65', font:{size:9} }, grid: { color:'rgba(255,255,255,0.04)' } },
+      },
+    },
+  });
+}
+function pushChart(chart, label, val) {
+  const d = chart.data;
+  d.labels.push(label); d.datasets[0].data.push(val);
+  if (d.labels.length > MAX_PTS) { d.labels.shift(); d.datasets[0].data.shift(); }
+  chart.update('none');
+}
+
+const ovTempChart  = mkLineChart('ov-temp-c', '#00d4ff', '온도');
+const sTempChart   = mkLineChart('s-temp-c',  '#ff4757', '온도');
+const sVibChart    = mkLineChart('s-vib-c',   '#ffb830', '진동');
+const sPresChart   = mkLineChart('s-pres-c',  '#a78bfa', '압력');
+const sCurrChart   = mkLineChart('s-curr-c',  '#00e896', '전류');
+
+// AI 추이 차트 (멀티 라인)
+const aiTrendChart = new Chart(document.getElementById('ai-trend-c'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: EQUIP_IDS.map((id, i) => ({
+      label: id,
+      data: [],
+      borderColor: ['#ff4757','#ffb830','#00d4ff','#00e896','#a78bfa','#888780'][i],
+      borderWidth: 1.5, fill: false, tension: 0.4, pointRadius: 0,
+    })),
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 0 },
+    plugins: { legend: { labels: { color:'#8b9099', font:{size:10}, boxWidth:10 } } },
+    scales: {
+      x: { ticks: { color:'#555b65', font:{size:9}, maxTicksLimit:6 }, grid: { color:'rgba(255,255,255,0.04)' } },
+      y: { min:0, max:1, ticks: { color:'#555b65', font:{size:9} }, grid: { color:'rgba(255,255,255,0.04)' } },
+    },
+  },
+});
+
+// 알림 히스토그램
+const alHistChart = new Chart(document.getElementById('al-hist-c'), {
+  type: 'bar',
+  data: { labels: ['0~0.2','0.2~0.4','0.4~0.6','0.6~0.8','0.8~1.0'], datasets: [{ label:'건수', data:[0,0,0,0,0], backgroundColor:['#00e89688','#00d4ff88','#ffb83088','#ff475788','#ff4757cc'], borderColor:['#00e896','#00d4ff','#ffb830','#ff4757','#ff4757'], borderWidth:1 }] },
+  options: { responsive: true, maintainAspectRatio: false, plugins:{ legend:{display:false} }, scales: { x:{ticks:{color:'#555b65',font:{size:10}},grid:{display:false}}, y:{ticks:{color:'#555b65',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}} } },
+});
+
+/* ─── WEBSOCKET ─── */
+function connectWS() {
+  if (ws) { try { ws.close(); } catch(e) {} }
+  setWsStatus('connecting');
+
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    setWsStatus('connected');
+    clearTimeout(wsReconnectTimer);
+    addLog('✓ WebSocket 연결 성공 — 실시간 스트림 시작');
+  };
+
+  ws.onmessage = (ev) => {
+    msgCount++;
+    document.getElementById('ws-msg-count').textContent = `수신 ${msgCount.toLocaleString()}건`;
+    try {
+      const packet = JSON.parse(ev.data);
+      if (packet.type === 'sensor_batch') handleBatch(packet.data);
+    } catch(e) {}
+  };
+
+  ws.onclose = () => {
+    setWsStatus('disconnected');
+    wsReconnectTimer = setTimeout(connectWS, 3000);
+    addLog('⚠ 연결 끊김 — 3초 후 재연결');
+  };
+
+  ws.onerror = () => {
+    setWsStatus('disconnected');
+    addLog('✗ WebSocket 오류 — 서버가 실행 중인지 확인하세요');
+  };
+}
+
+function setWsStatus(state) {
+  const dot   = document.getElementById('ws-dot');
+  const label = document.getElementById('ws-label');
+  const pill  = document.getElementById('conn-pill');
+  dot.className = 'ws-dot ' + state;
+  if (state === 'connected') {
+    label.textContent = '스트림 연결됨'; pill.textContent = '● LIVE'; pill.style.color = 'var(--green)';
+  } else if (state === 'connecting') {
+    label.textContent = '연결 중...'; pill.textContent = '● CONNECTING'; pill.style.color = 'var(--amber)';
+  } else {
+    label.textContent = '연결 끊김'; pill.textContent = '● OFFLINE'; pill.style.color = 'var(--red)';
+  }
+}
+
+/* ─── BATCH HANDLER ─── */
+function handleBatch(items) {
+  const ts = new Date().toLocaleTimeString('ko-KR');
+
+  items.forEach(item => {
+    const id = item.equipment_id;
+    const s  = item.sensors;
+    latestSensor[id] = s;
+
+    // 센서 버퍼 업데이트
+    const buf = sensorBuf[id];
+    ['temperature','vibration','pressure','current','humidity'].forEach(k => {
+      buf[k].push(s[k]);
+      if (buf[k].length > MAX_PTS) buf[k].shift();
+    });
+    buf.ts.push(ts);
+    if (buf.ts.length > MAX_PTS) buf.ts.shift();
+
+    // AI 스코어
+    if (item.anomaly) {
+      latestAnomalyScore[id] = item.anomaly.score;
+      scoreBuf[id].push(item.anomaly.score);
+      if (scoreBuf[id].length > MAX_PTS) scoreBuf[id].shift();
+
+      if (item.anomaly.is_anomaly) {
+        totalAlerts++;
+        if (item.anomaly.method === 'isolation_forest') ifAlerts++;
+        else if (item.anomaly.method === 'lstm_ae') lstmAlerts++;
+        const alert = { ...item.anomaly, equipment_id: id, timestamp: ts };
+        alertLog.unshift(alert);
+        if (alertLog.length > 200) alertLog.pop();
+        updateAlertBadge();
+        addLog(`⚠ [${id}] 이상 탐지 — 스코어 ${item.anomaly.score.toFixed(3)} (${item.anomaly.method})`);
+        updateAlertScoreHistogram(item.anomaly.score);
+      }
+    }
+  });
+
+  updateOverview(ts);
+  updateSensorPage(ts);
+  updateAIPage(ts, items);
+  updateAlertsPage();
+}
+
+/* ─── OVERVIEW ─── */
+function updateOverview(ts) {
+  const running = EQUIP_IDS.filter(id => latestSensor[id]).length;
+  document.getElementById('ov-running').textContent = running;
+  document.getElementById('ov-running-sub').textContent = `/ ${EQUIP_IDS.length} 대 총 보유`;
+  document.getElementById('ov-alarms').textContent = totalAlerts;
+
+  // 최고 위험 장비
+  let topId = '—', topScore = 0;
+  EQUIP_IDS.forEach(id => {
+    const sc = latestAnomalyScore[id] || 0;
+    if (sc > topScore) { topScore = sc; topId = id; }
+  });
+  document.getElementById('ov-top-risk').textContent = topScore > 0.3 ? topId : '없음';
+  document.getElementById('ov-top-risk-sub').textContent = topScore > 0 ? `스코어 ${topScore.toFixed(3)}` : '모두 정상';
+
+  // 온도 차트 (CVD-01)
+  const buf = sensorBuf['CVD-01'];
+  if (buf.temperature.length > 0) pushChart(ovTempChart, ts, buf.temperature[buf.temperature.length-1]);
+
+  // 장비 목록
+  renderEquipList();
+
+  // 알림 목록
+  renderOvAlerts();
+}
+
+function renderEquipList() {
+  const colors = {normal:'#00e896', warn:'#ffb830', danger:'#ff4757', off:'#555b65'};
+  const html = EQUIP_IDS.map(id => {
+    const sc = latestAnomalyScore[id] || 0;
+    const s  = latestSensor[id];
+    const status = !s ? 'off' : sc > 0.6 ? 'danger' : sc > 0.3 ? 'warn' : 'normal';
+    const tagMap = {normal:'<span class="tag tg">정상</span>',warn:'<span class="tag ta">경고</span>',danger:'<span class="tag tr">위험</span>',off:'<span class="tag tgr">정지</span>'};
+    const health = s ? Math.max(0, Math.min(100, Math.round((1-sc)*100))) : 0;
+    const hc = health>75?'#00e896':health>50?'#ffb830':'#ff4757';
+    return `<div class="equip-row">
+      <span class="equip-dot" style="background:${colors[status]}"></span>
+      <div style="flex:1"><div class="equip-name">${id}</div></div>
+      <div class="hbar"><div class="hfill" style="width:${health}%;background:${hc}"></div></div>
+      <span class="hpct">${health}%</span>
+      ${tagMap[status]}
+    </div>`;
+  }).join('');
+  document.getElementById('equip-list').innerHTML = html;
+}
+
+function renderOvAlerts() {
+  if (alertLog.length === 0) {
+    document.getElementById('ov-alerts-list').textContent = '탐지된 알림 없음';
+    return;
+  }
+  document.getElementById('ov-alerts-list').innerHTML = alertLog.slice(0,5).map(a => {
+    const cls = a.score > 0.7 ? 'ai-h' : a.score > 0.4 ? 'ai-m' : 'ai-l';
+    return `<div class="alert-item ${cls}">
+      <div>
+        <div class="alert-msg">${a.equipment_id} — 이상 감지 (스코어 ${a.score.toFixed(3)})</div>
+        <div class="alert-meta">${a.timestamp} &nbsp;|&nbsp; ${a.method} &nbsp;|&nbsp; ${a.details||'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ─── SENSORS PAGE ─── */
+let curEquipTab = 'CVD-01';
+function switchEquipTab(id, el) {
+  curEquipTab = id;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  rebuildSensorCharts();
+}
+function rebuildSensorCharts() {
+  const buf = sensorBuf[curEquipTab];
+  const charts = [sTempChart, sVibChart, sPresChart, sCurrChart];
+  const keys   = ['temperature','vibration','pressure','current'];
+  charts.forEach((c,i) => {
+    c.data.labels = [...buf.ts];
+    c.data.datasets[0].data = [...buf[keys[i]]];
+    c.update('none');
+  });
+}
+function updateSensorPage(ts) {
+  const buf = sensorBuf[curEquipTab];
+  const n = buf.ts.length - 1;
+  if (n < 0) return;
+  pushChart(sTempChart, ts, buf.temperature[n]);
+  pushChart(sVibChart,  ts, buf.vibration[n]);
+  pushChart(sPresChart, ts, buf.pressure[n]);
+  pushChart(sCurrChart, ts, buf.current[n]);
+
+  // 전체 센서값 테이블
+  const sensorDefs = [
+    {key:'temperature',label:'온도',unit:'°C',max:400,color:'#ff4757'},
+    {key:'vibration',  label:'진동',unit:'mm/s',max:10,color:'#ffb830'},
+    {key:'pressure',   label:'압력',unit:'mTorr',max:100,color:'#a78bfa'},
+    {key:'current',    label:'전류',unit:'A',max:80,color:'#00e896'},
+    {key:'humidity',   label:'습도',unit:'%RH',max:100,color:'#00d4ff'},
+  ];
+  let html = '';
+  EQUIP_IDS.forEach(id => {
+    const s = latestSensor[id];
+    if (!s) return;
+    html += `<div style="margin-bottom:10px"><div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:5px">${id}</div>`;
+    sensorDefs.forEach(d => {
+      const pct = Math.min(100, Math.round(s[d.key]/d.max*100));
+      html += `<div class="sensor-row">
+        <span class="sensor-name">${d.label}</span>
+        <div class="sensor-bg"><div class="sensor-fill" style="width:${pct}%;background:${d.color}"></div></div>
+        <span class="sensor-val">${s[d.key].toFixed(1)} ${d.unit}</span>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  document.getElementById('s-all-sensors').innerHTML = html || '데이터 수신 대기 중...';
+}
+
+/* ─── AI PAGE ─── */
+function updateAIPage(ts, items) {
+  // 스코어 바
+  let scHtml = '';
+  EQUIP_IDS.forEach(id => {
+    const sc = latestAnomalyScore[id] !== undefined ? latestAnomalyScore[id] : null;
+    if (sc === null) return;
+    const pct = Math.round(sc * 100);
+    const color = sc > 0.6 ? '#ff4757' : sc > 0.3 ? '#ffb830' : '#00e896';
+    scHtml += `<div class="ai-score-bar">
+      <span class="ai-label">${id}</span>
+      <div class="ai-bg"><div class="ai-fill" style="width:${pct}%;background:${color}"></div></div>
+      <span class="ai-val" style="color:${color}">${sc.toFixed(3)}</span>
+    </div>`;
+  });
+  document.getElementById('ai-scores').innerHTML = scHtml || '모델 학습 중 — 데이터 수집 중...';
+
+  // AI 추이 차트
+  aiTrendChart.data.labels.push(ts);
+  if (aiTrendChart.data.labels.length > MAX_PTS) aiTrendChart.data.labels.shift();
+  EQUIP_IDS.forEach((id, i) => {
+    const sc = latestAnomalyScore[id] !== undefined ? latestAnomalyScore[id] : null;
+    const ds = aiTrendChart.data.datasets[i];
+    ds.data.push(sc);
+    if (ds.data.length > MAX_PTS) ds.data.shift();
+  });
+  aiTrendChart.update('none');
+
+  // 모델 상태는 REST API로 주기적 조회
+}
+
+function fetchModelStatus() {
+  fetch(API_BASE + '/api/model/status')
+    .then(r => r.json())
+    .then(data => {
+      const models = data.models || [];
+      let readyCount = 0;
+      const html = models.map(m => {
+        const ready = m.if_trained || m.lstm_trained;
+        if (ready) readyCount++;
+        const badge = m.if_trained && m.lstm_trained
+          ? '<span class="ms-badge ms-ready">앙상블 가동</span>'
+          : m.if_trained
+          ? '<span class="ms-badge ms-training">IF 가동</span>'
+          : '<span class="ms-badge ms-pending">학습 대기</span>';
+        return `<div class="ms-row">
+          <span class="ms-name">${m.equipment_id}</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">샘플 ${m.if_samples}</span>
+          ${badge}
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--red)">${m.alert_count}건</span>
+        </div>`;
+      }).join('');
+      document.getElementById('model-status-list').innerHTML = html || '서버 연결 필요';
+      const label = readyCount === models.length ? '앙상블 가동' : readyCount > 0 ? `${readyCount}/${models.length} 가동` : '학습 중';
+      document.getElementById('ov-model').textContent = label;
+      document.getElementById('ov-model-sub').textContent = `${readyCount}개 모델 준비됨`;
+      document.getElementById('nb-model').textContent = readyCount > 0 ? '가동' : '학습중';
+      document.getElementById('nb-model').className = readyCount > 0 ? 'nav-badge nb-green' : 'nav-badge nb-amber';
+    })
+    .catch(() => {
+      document.getElementById('model-status-list').innerHTML = '<div style="font-family:var(--font-mono);font-size:11px;color:var(--red)">서버 미연결 — python backend/main.py 실행 필요</div>';
+    });
+}
+fetchModelStatus();
+setInterval(fetchModelStatus, 5000);
+
+/* ─── ALERTS PAGE ─── */
+function updateAlertsPage() {
+  document.getElementById('al-total').textContent = totalAlerts;
+  document.getElementById('al-if').textContent    = ifAlerts;
+  document.getElementById('al-lstm').textContent  = lstmAlerts;
+  document.getElementById('al-total').className = 'metric-value ' + (totalAlerts > 0 ? 'mv-red' : 'mv-green');
+  document.getElementById('nb-alerts').textContent = totalAlerts;
+  if (alertLog.length === 0) return;
+  document.getElementById('al-list').innerHTML = alertLog.slice(0,30).map(a => {
+    const cls = a.score > 0.7 ? 'ai-h' : a.score > 0.4 ? 'ai-m' : 'ai-l';
+    return `<div class="alert-item ${cls}">
+      <div>
+        <div class="alert-msg">${a.equipment_id} — 이상 감지</div>
+        <div class="alert-meta">스코어 ${a.score.toFixed(3)} &nbsp;|&nbsp; ${a.method} &nbsp;|&nbsp; ${a.timestamp} &nbsp;|&nbsp; ${a.details||'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateAlertBadge() {
+  document.getElementById('nb-alerts').textContent = totalAlerts;
+}
+
+function updateAlertScoreHistogram(score) {
+  const bins = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+  for (let i = 0; i < bins.length - 1; i++) {
+    if (score >= bins[i] && score < bins[i+1]) {
+      alHistChart.data.datasets[0].data[i]++;
+      alHistChart.update('none');
+      break;
+    }
+  }
+}
+
+/* ─── LOG ─── */
+const logLines = [];
+function addLog(msg) {
+  const t = new Date().toLocaleTimeString('ko-KR');
+  logLines.unshift(`[${t}] ${msg}`);
+  if (logLines.length > 100) logLines.pop();
+  const el = document.getElementById('ai-log');
+  if (el) el.innerHTML = logLines.slice(0, 30).join('<br>');
+}
+
+/* ─── INIT ─── */
+connectWS();
+</script>
+</body>
+</html>
