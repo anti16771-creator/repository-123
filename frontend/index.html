@@ -163,6 +163,15 @@ select option{background:var(--bg2);color:var(--text)}
 .timeline-date{font-family:var(--font-mono);font-size:10px;color:var(--text2);margin-bottom:2px}
 .timeline-text{font-size:12px;color:var(--text)}
 .number-animate{display:inline-block;font-variant-numeric:tabular-nums}
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;animation:fadeIn 0.3s ease-out}
+.modal-overlay.active{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:20px;min-width:400px;max-width:600px;max-height:80vh;overflow-y:auto;animation:popIn 0.3s ease-out}
+@keyframes popIn{0%{opacity:0;transform:scale(0.8)}100%{opacity:1;transform:scale(1)}}
+.modal-close{float:right;cursor:pointer;font-size:20px;color:var(--text2);transition:color 0.3s;user-select:none}
+.modal-close:hover{color:var(--accent)}
+.modal-title{font-family:var(--font-disp);font-size:18px;margin-bottom:12px;clear:both}
+.modal-content{font-size:12px;color:var(--text)}
+.countdown-large{font-size:32px;font-weight:500;color:var(--red);margin:8px 0;font-variant-numeric:tabular-nums;animation:pulse 1.2s infinite}
 </style>
 </head>
 <body>
@@ -212,13 +221,22 @@ select option{background:var(--bg2);color:var(--text)}
       <div class="metric m-red"><div class="metric-label">AI 탐지 알림</div><div class="metric-value mv-red" id="ov-alarms">0</div><div class="metric-sub">누적 이상 감지</div></div>
       <div class="metric m-green"><div class="metric-label">모델 상태</div><div class="metric-value mv-green" style="font-size:16px" id="ov-model">학습 완료</div><div class="metric-sub" id="ov-model-sub">앙상블 가동 중</div></div>
       <div class="metric m-amber"><div class="metric-label">최고 위험 장비</div><div class="metric-value mv-amber" style="font-size:18px" id="ov-top-risk">정상</div><div class="metric-sub" id="ov-top-risk-sub">모두 양호</div></div>
-      <div class="metric failtime-card" id="failtime-metric" style="grid-column:1"><div class="metric-label">임박 고장</div><div class="failtime-value" id="failtime-text">-</div><div class="failtime-label" id="failtime-sub">안전</div></div>
+      <div class="metric countdown-card" id="failtime-metric" style="grid-column:1;border-left:2px solid var(--red)"><div class="metric-label">임박 고장</div><div class="countdown-large" id="failtime-text">-</div><div class="failtime-label" id="failtime-sub">안전</div></div>
     </div>
     <div class="g2">
       <div class="card"><div class="card-title">장비 현황</div><div id="equip-list">로딩 중...</div></div>
       <div class="card"><div class="card-title">온도 추이 (선택 장비)</div><div class="chart-wrap" style="height:150px"><canvas id="ov-temp-c"></canvas></div></div>
     </div>
     <div class="card"><div class="card-title">최근 AI 이상 알림</div><div id="ov-alerts-list">탐지된 알림 없음</div></div>
+  </div>
+
+  <!-- 장비 상세 모달 -->
+  <div class="modal-overlay" id="equipModal">
+    <div class="modal">
+      <span class="modal-close" onclick="closeEquipModal()">✕</span>
+      <div class="modal-title" id="modalTitle">장비 상세 정보</div>
+      <div class="modal-content" id="modalContent">로딩 중...</div>
+    </div>
   </div>
 
   <!-- 센서 설정 & 모니터링 -->
@@ -277,9 +295,9 @@ select option{background:var(--bg2);color:var(--text)}
 
   <!-- AI -->
   <div class="page" id="page-ai">
-    <div class="page-title">AI 이상 탐지</div><div class="page-desc">// Isolation Forest + LSTM Autoencoder 앙상블</div>
+    <div class="page-title">AI 이상 탐지</div><div class="page-desc">// Isolation Forest + LSTM Autoencoder 앙상블 가동</div>
     <div class="g2">
-      <div class="card"><div class="card-title">모델 학습 현황</div><div id="model-status-list">모든 모델 학습 완료</div></div>
+      <div class="card"><div class="card-title">모델 상태</div><div id="model-status-list" style="padding:10px;background:var(--bg3);border-radius:3px;color:var(--green);font-family:var(--font-mono);font-size:12px;font-weight:500">✓ 앙상블 가동 중</div></div>
       <div class="card"><div class="card-title">장비별 이상 스코어 (실시간)</div><div id="ai-scores"></div></div>
     </div>
     <div class="card"><div class="card-title">이상 탐지 추이</div><div class="chart-wrap" style="height:180px"><canvas id="ai-trend-c"></canvas></div></div>
@@ -535,12 +553,12 @@ function updateOverview(ts){
   const running=EQUIP_IDS.filter(id=>latestSensor[id]).length;
   const runningEl=document.getElementById('ov-running');
   if(runningEl.textContent!==running.toString()){
-    runningEl.textContent=running;
+    animateNumber(runningEl,parseInt(runningEl.textContent)||0,running,300);
   }
   
   const alarmsEl=document.getElementById('ov-alarms');
   if(parseInt(alarmsEl.textContent)!==totalAlerts){
-    alarmsEl.textContent=totalAlerts;
+    animateNumber(alarmsEl,parseInt(alarmsEl.textContent)||0,totalAlerts,300);
   }
   
   let topId='정상',topScore=0;
@@ -560,8 +578,7 @@ function updateOverview(ts){
     const health=s?Math.max(0,Math.min(100,Math.round((1-sc)*100))):0;
     const hc=health>75?'#00e896':health>50?'#ffb830':'#ff4757';
     const r=28,circ=2*Math.PI*r,dashoffset=circ*(1-health/100);
-    const gaugeId=`gauge-${id}`;
-    return `<div class="equip-row"><span class="equip-dot" style="background:${colors[status]}"></span><div style="flex:1;font-size:12px;font-weight:500">${id}</div><svg class="gauge-container" viewBox="0 0 70 70" style="width:50px;height:50px"><circle cx="35" cy="35" r="${r}" fill="none" stroke="var(--bg4)" stroke-width="4"/><circle cx="35" cy="35" r="${r}" fill="none" stroke="${hc}" stroke-width="4" stroke-dasharray="${circ}" stroke-dashoffset="${dashoffset}" style="transform:rotate(-90deg);transform-origin:35px 35px;transition:stroke-dashoffset 0.6s"/><text x="35" y="38" text-anchor="middle" font-size="16" font-weight="500" fill="currentColor">${health}</text><text x="35" y="50" text-anchor="middle" font-size="9" fill="var(--text3)">%</text></svg>${tags[status]}</div>`;
+    return `<div class="equip-row" onclick="showEquipModal('${id}')"><span class="equip-dot" style="background:${colors[status]}"></span><div style="flex:1;font-size:12px;font-weight:500">${id}</div><svg class="equip-gauge" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${r}" fill="none" stroke="var(--bg4)" stroke-width="4"/><circle cx="35" cy="35" r="${r}" fill="none" stroke="${hc}" stroke-width="4" stroke-dasharray="${circ}" stroke-dashoffset="${dashoffset}" style="transform:rotate(-90deg);transform-origin:35px 35px;transition:stroke-dashoffset 0.6s"/><text x="35" y="38" text-anchor="middle" font-size="16" font-weight="500" fill="currentColor">${health}</text><text x="35" y="50" text-anchor="middle" font-size="9" fill="var(--text3)">%</text></svg>${tags[status]}</div>`;
   }).join('');
   
   document.getElementById('ov-alerts-list').innerHTML=alertLog.length===0?'탐지된 알림 없음':alertLog.slice(0,5).map(a=>`<div class="alert-item ${a.score>0.7?'ai-h':a.score>0.4?'ai-m':'ai-l'}"><div><div class="alert-msg">${a.equipment_id} — 이상 감지 (스코어 ${a.score.toFixed(3)})</div><div class="alert-meta">${a.timestamp} | ${a.method}</div></div></div>`).join('');
@@ -633,7 +650,7 @@ function animateNumber(el,start,end,duration=500){
 
 // 토스트 알림
 function showToast(msg,type='info',duration=3000){
-  const container=document.getElementById('toast-container');
+  const container=document.getElementById('toast-container')||(()=>{const c=document.createElement('div');c.id='toast-container';c.className='toast-container';document.body.appendChild(c);return c;})();
   const toast=document.createElement('div');
   toast.className='toast '+type;
   const icons={danger:'⚠️',warning:'⚡',success:'✅',info:'ℹ️'};
@@ -741,7 +758,6 @@ function savePDF(){
 }
 
 // 임박 고장 카운트다운
-let failTimeInterval=null;
 function updateFailTime(){
   let mostRisky=null,maxScore=0;
   EQUIP_IDS.forEach(id=>{
@@ -751,7 +767,7 @@ function updateFailTime(){
   
   if(maxScore<0.5){
     document.getElementById('failtime-metric').style.color='var(--text)';
-    document.getElementById('failtime-metric').className='metric failtime-card';
+    document.getElementById('failtime-metric').style.animation='none';
     document.getElementById('failtime-text').textContent='-';
     document.getElementById('failtime-sub').textContent='안전';
     return;
@@ -762,8 +778,7 @@ function updateFailTime(){
   const colorIdx=Math.min(2,Math.floor((1-days/5)*2));
   
   document.getElementById('failtime-metric').style.color=colors[colorIdx];
-  document.getElementById('failtime-metric').className='metric failtime-card';
-  if(document.getElementById('failtime-metric').style.color==='var(--red)'){
+  if(colors[colorIdx]==='var(--red)'){
     document.getElementById('failtime-metric').style.animation='pulse 0.8s infinite';
   }else{
     document.getElementById('failtime-metric').style.animation='none';
@@ -1005,10 +1020,56 @@ function toggleTheme(){const isLight=document.body.classList.contains('light-mod
 function updateThemeToggle(){const isLight=document.body.classList.contains('light-mode');document.getElementById('theme-toggle').textContent=isLight?'☀️':'🌙';}
 initTheme();
 
+// 장비 상세 모달 표시
+function showEquipModal(equipId){
+  const s=latestSensor[equipId];
+  const sc=latestAnomalyScore[equipId]||0;
+  const status=sc>0.6?'위험':sc>0.3?'경고':'정상';
+  const health=Math.max(0,Math.min(100,Math.round((1-sc)*100)));
+  
+  document.getElementById('modalTitle').textContent=`${equipId} — 센서 상세정보`;
+  document.getElementById('modalContent').innerHTML=`
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:8px">현재 상태</div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+        <div>
+          <div style="font-size:24px;font-weight:500;color:${status==='위험'?'var(--red)':status==='경고'?'var(--amber)':'var(--green)'}">${health}%</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">건강도</div>
+        </div>
+        <div>
+          <div style="font-size:24px;font-weight:500;color:var(--text)">${status}</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">상태</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:8px">센서값</div>
+      <div class="sensor-row"><span class="sensor-name">온도</span><span class="sensor-val">${s.temperature.toFixed(1)}°C</span></div>
+      <div class="sensor-row"><span class="sensor-name">진동</span><span class="sensor-val">${s.vibration.toFixed(2)} mm/s</span></div>
+      <div class="sensor-row"><span class="sensor-name">압력</span><span class="sensor-val">${s.pressure.toFixed(1)} mTorr</span></div>
+      <div class="sensor-row"><span class="sensor-name">전류</span><span class="sensor-val">${s.current.toFixed(1)} A</span></div>
+      <div class="sensor-row"><span class="sensor-name">습도</span><span class="sensor-val">${s.humidity.toFixed(1)} %</span></div>
+    </div>
+    <div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:8px">AI 분석</div>
+      <div style="padding:8px;background:var(--bg);border-radius:3px;border:1px solid var(--border)">
+        <div style="font-size:12px;margin-bottom:4px">이상 스코어: <strong style="color:var(--red)">${sc.toFixed(3)}</strong></div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">모델: 앙상블 (Isolation Forest + LSTM)</div>
+      </div>
+    </div>
+  `;
+  document.getElementById('equipModal').classList.add('active');
+}
+
+function closeEquipModal(){
+  document.getElementById('equipModal').classList.remove('active');
+}
+
 // 초기화
 updateThresholds();
 updateSensitivity();
 updateOverview(new Date().toLocaleTimeString('ko-KR'));
+addLog('✓ 모든 AI 모델 학습 완료 — 앙상블 가동 중');
 </script>
 <div class="toast-container" id="toast-container"></div>
 </body>
