@@ -172,6 +172,13 @@ select option{background:var(--bg2);color:var(--text)}
 .modal-title{font-family:var(--font-disp);font-size:18px;margin-bottom:12px;clear:both}
 .modal-content{font-size:12px;color:var(--text)}
 .countdown-large{font-size:32px;font-weight:500;color:var(--red);margin:8px 0;font-variant-numeric:tabular-nums;animation:pulse 1.2s infinite}
+.equip-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.equip-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:3px;border:1px solid var(--border);cursor:pointer;transition:all 0.3s}
+.equip-card:hover{border-color:var(--border2);background:var(--bg3)}
+.equip-gauge-sm{width:80px;height:80px;flex-shrink:0}
+.equip-card-info{flex:1;min-width:0}
+.equip-card-name{font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.equip-card-health{font-family:var(--font-mono);font-size:18px;font-weight:500;line-height:1;margin-top:4px}
 </style>
 </head>
 <body>
@@ -572,14 +579,14 @@ function updateOverview(ts){
   const colors={normal:'#00e896',warn:'#ffb830',danger:'#ff4757',off:'#555b65'};
   const tags={normal:'<span class="tag tg">정상</span>',warn:'<span class="tag ta">경고</span>',danger:'<span class="tag tr">위험</span>',off:'<span class="tag tgr">정지</span>'};
   
-  document.getElementById('equip-list').innerHTML=EQUIP_IDS.map(id=>{
+  document.getElementById('equip-list').innerHTML='<div class="equip-grid">'+EQUIP_IDS.map(id=>{
     const sc=latestAnomalyScore[id]||0,s=latestSensor[id];
     const status=!s?'off':sc>0.6?'danger':sc>0.3?'warn':'normal';
     const health=s?Math.max(0,Math.min(100,Math.round((1-sc)*100))):0;
     const hc=health>75?'#00e896':health>50?'#ffb830':'#ff4757';
-    const r=28,circ=2*Math.PI*r,dashoffset=circ*(1-health/100);
-    return `<div class="equip-row" onclick="showEquipModal('${id}')"><span class="equip-dot" style="background:${colors[status]}"></span><div style="flex:1;font-size:12px;font-weight:500">${id}</div><svg class="equip-gauge" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${r}" fill="none" stroke="var(--bg4)" stroke-width="4"/><circle cx="35" cy="35" r="${r}" fill="none" stroke="${hc}" stroke-width="4" stroke-dasharray="${circ}" stroke-dashoffset="${dashoffset}" style="transform:rotate(-90deg);transform-origin:35px 35px;transition:stroke-dashoffset 0.6s"/><text x="35" y="38" text-anchor="middle" font-size="16" font-weight="500" fill="currentColor">${health}</text><text x="35" y="50" text-anchor="middle" font-size="9" fill="var(--text3)">%</text></svg>${tags[status]}</div>`;
-  }).join('');
+    const r=32,circ=2*Math.PI*r,dashoffset=circ*(1-health/100);
+    return `<div class="equip-card" onclick="showEquipModal('${id}')"><svg class="equip-gauge-sm" viewBox="0 0 80 80"><circle cx="40" cy="40" r="${r}" fill="none" stroke="var(--bg4)" stroke-width="5"/><circle cx="40" cy="40" r="${r}" fill="none" stroke="${hc}" stroke-width="5" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${dashoffset.toFixed(2)}" style="transform:rotate(-90deg);transform-origin:40px 40px;transition:stroke-dashoffset 0.6s"/><text x="40" y="43" text-anchor="middle" font-size="17" font-weight="500" fill="currentColor">${health}</text><text x="40" y="56" text-anchor="middle" font-size="9" fill="var(--text3)">%</text></svg><div class="equip-card-info"><div class="equip-card-name">${id}</div>${tags[status]}<div class="equip-card-health" style="color:${hc}">${health}<span style="font-size:11px;color:var(--text3)"> 건강도</span></div></div></div>`;
+  }).join('')+'</div>';
   
   document.getElementById('ov-alerts-list').innerHTML=alertLog.length===0?'탐지된 알림 없음':alertLog.slice(0,5).map(a=>`<div class="alert-item ${a.score>0.7?'ai-h':a.score>0.4?'ai-m':'ai-l'}"><div><div class="alert-msg">${a.equipment_id} — 이상 감지 (스코어 ${a.score.toFixed(3)})</div><div class="alert-meta">${a.timestamp} | ${a.method}</div></div></div>`).join('');
 }
