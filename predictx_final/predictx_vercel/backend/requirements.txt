@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-websockets
-numpy
-scikit-learn
-pandas
-pydantic
-python-multipart
-httpx
